@@ -1,0 +1,63 @@
+<template>
+    <div class="slds-grid slds-gutters slds-wrap">
+        <div class="slds-col formbox slds-p-top_x-small slds-grid_vertical-align-center slds-order_2 slds-large-order_1 slds-size_1-of-1 slds-large-size_6-of-12">
+            <lightning-card >
+                <div class="card slds-var-p-around_medium">
+                    <div class="title">
+                        <h1 class="slds-text-align_center">Form</h1>
+                    </div>
+                    <div class="slds-grid slds-gutters slds-wrap">
+                        <div class="slds-col slds-size_1-of-1">
+                            <div class="slds-p-around_xx-small">
+                                <lightning-input type="text" placeholder="Enter your name" label="Name" id="name" name="name" value={formData.name}
+                                    onchange={handleInputChange} required></lightning-input>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1">
+                            <div class="slds-p-around_xx-small">
+                                <lightning-input type="email" placeholder="Enter your email" label="Email" id="email" name="email" value={formData.email}
+                                    onchange={handleInputChange} required></lightning-input>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1">
+                            <div class="slds-p-around_xx-small">
+                                <lightning-input type="tel" placeholder="Enter your mobile" label="Mobile" id="mobile" name="mobile" value={formData.mobile}
+                                    onchange={handleInputChange} required></lightning-input>
+                            </div>
+                        </div>
+        
+                        <div class="slds-col slds-size_1-of-1">
+                            <div class="slds-p-around_xx-small">
+                                <lightning-input type="file" label="Attachment" required name="attachment" id="attachment" onchange={handleFileUpload} multiple></lightning-input>
+                            </div>
+                            <div>
+                                <template if:true={areFileExist}>
+                                    <ul>
+                                        <template for:each={selectedFiles} for:item="file">
+                                            <li key={file.fileName}>
+                                                {file.fileName}
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1 slds-align_absolute-center">
+                            <div class="slds-p-around_xx-small">
+                                <lightning-button variant="brand" label="Submit" title="Submit" disabled={disableBtn} onclick={handleClick} class="slds-m-left_x-small"></lightning-button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </lightning-card>
+            
+        </div>
+        <div class="slds-col slds-size_1-of-1 slds-order_1 slds-large-order_2 slds-large-size_6-of-12">
+            <div class="slds-media_center imageContainer">
+                <img src={image1URL}/>
+            </div>
+        </div>
+    </div>
+
+</template>

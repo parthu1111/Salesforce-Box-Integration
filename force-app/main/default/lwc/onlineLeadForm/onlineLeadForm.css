@@ -1,0 +1,13 @@
+.imageContainer img{
+    object-fit: cover;
+}
+.title h1{
+    font-weight: bolder;
+    font-size: 32px;
+}
+.search-field-wrapper{
+    display: none !important;
+}
+.formbox{
+    align-self: center;
+}
