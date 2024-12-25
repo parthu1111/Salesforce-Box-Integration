@@ -101,5 +101,6 @@ export default class OnlineLeadForm extends LightningElement {
         this.formData = { name: '', phone: '', email: '' };
         this.fileContent = '';
         this.fileName = '';
+        this.selectedFiles = [];
     }
 }
