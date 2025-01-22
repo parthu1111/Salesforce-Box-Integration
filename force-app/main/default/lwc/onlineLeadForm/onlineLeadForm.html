@@ -28,7 +28,7 @@
         
                         <div class="slds-col slds-size_1-of-1">
                             <div class="slds-p-around_xx-small">
-                                <lightning-input type="file" label="Attachment" required name="attachment" id="attachment" onchange={handleFileUpload} multiple></lightning-input>
+                                <lightning-input type="file" label="Attachment" required name="attachment" id="attachment" data-id="fileInput" onchange={handleFileUpload} multiple></lightning-input>
                             </div>
                             <div>
                                 <template if:true={areFileExist}>
@@ -42,9 +42,30 @@
                                 </template>
                             </div>
                         </div>
+                        <div class="slds-col slds-size_1-of-1">
+                            <div class="slds-p-around_xx-small">
+                                <strong class="warning">* Don't upload files larger than 50 MB. </strong>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-1">
+                            <div class="captcha-container slds-text-align_center">
+                                <!-- <iframe src={navigateTo} name="captchaFrame" onload={onCaptchaLoaded}></iframe>
+                                <template if:true={validReCAPTCHA}>
+                                    Valid Request
+                                </template> -->
+                                <!-- <div data-id="recaptcha"></div> -->
+                                <!-- <iframe src={navigateTo} name="captchaFrame" onload={captchaLoaded}></iframe> -->
+                                <!-- <div class="recaptchaInvisible"></div> -->
+                            </div>
+                        </div>
                         <div class="slds-col slds-size_1-of-1 slds-align_absolute-center">
                             <div class="slds-p-around_xx-small">
-                                <lightning-button variant="brand" label="Submit" title="Submit" disabled={disableBtn} onclick={handleClick} class="slds-m-left_x-small"></lightning-button>
+                                <template if:true={disableBtn}>
+                                    <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+                                </template>
+                                <template if:false={disableBtn}>
+                                    <lightning-button variant="brand" label="Submit" title="Submit" disabled={disableBtn} onclick={handleClick} class="slds-m-left_x-small"></lightning-button>
+                                </template>
                             </div>
                         </div>
                     </div>

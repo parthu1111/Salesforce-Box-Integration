@@ -11,3 +11,13 @@
 .formbox{
     align-self: center;
 }
+.warning{
+    color: red;
+    font-size: 12px;
+}
+.grecaptcha-badge {
+    z-index: 99999 !important;
+}
+.siteforceThemeLayoutStarter {
+    z-index: -1 !important;
+}
