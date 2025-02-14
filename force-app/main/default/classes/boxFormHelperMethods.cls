@@ -9,21 +9,26 @@ public with sharing class boxFormHelperMethods {
     private static string emailBody;
     private static string boxBaseUrl;
     private static string organizationWideEmailAdress;
+    private static string owenerEmail;
 
-    private static string getSFBoxFolderIdByEmail(string emailID){
+    private static onlineLeadFromController.reponseForLWC getSFBoxFolderIdByEmail(string emailID){
         try{
             System.debug('get folder by email.');
+            
             List<string> stages=getCloseAndOpenStage();
-            List<Opportunity> loans=[select id,Account.PersonEmail,CoBorrower_Email__c from Opportunity where Account.PersonEmail =:emailID and StageName not In :stages order by CreatedDate desc];
+            List<Opportunity> loans=[select id,Account.PersonEmail,CoBorrower_Email__c,Owner.Email from Opportunity where Account.PersonEmail =:emailID and StageName not In :stages order by CreatedDate desc];
             if(loans.isEmpty()){
-                loans=[select id,Account.PersonEmail,CoBorrower_Email__c from Opportunity where CoBorrower_Email__c =:emailID and StageName not In :stages order by CreatedDate desc];
+                loans=[select id,Account.PersonEmail,CoBorrower_Email__c,Owner.Email from Opportunity where CoBorrower_Email__c =:emailID and StageName not In :stages order by CreatedDate desc];
             }
             if(loans.size()>0){
                 //take latest loan and find folder id;
                 List<box__FRUP__c> frups= [SELECT Id, Name, box__Folder_ID__c, box__Record_ID__c FROM box__FRUP__c where box__Record_ID__c=:loans[0].Id limit 1];
                 System.debug('salesforce loan Id :'+loans[0].Id);
+                System.debug('owner email : '+loans[0].Owner.Email);
+                owenerEmail=loans[0].Owner.Email;
                 if(frups.size()>0){
-                    return frups[0].box__Folder_ID__c;        
+                    return new onlineLeadFromController.reponseForLWC(frups[0].box__Folder_ID__c, loans[0].id);
+                    //return frups[0].box__Folder_ID__c;        
                 }
                 return null;
             }
@@ -50,7 +55,7 @@ public with sharing class boxFormHelperMethods {
     }
 
    
-    public static string uploadFileToBox(string name,string email,string phone,List<onlineLeadFromController.FileWrapper> files){
+    public static onlineLeadFromController.reponseForLWC uploadFileToBox(string name,string email,string phone){
         try{
         Experience_cloud_solution__mdt metaData=[SELECT Temp_User_Id__c,Folder_Name__c, Success_Email_Template__c,Holding_Folder_Id__c,BackUp_Folder_Id__c,Email_Body__c,Box_Base_URL__c,Organization_Wide_Email_Addresse__c FROM Experience_cloud_solution__mdt where DeveloperName ='admin' limit 1];
         
@@ -59,12 +64,12 @@ public with sharing class boxFormHelperMethods {
         folderName=metaData.Folder_Name__c;
         holdingFolderId=metaData.Holding_Folder_Id__c;
         backuFolderId=metaData.BackUp_Folder_Id__c;
-        emailBody=metaData.Email_Body__c;
-        boxBaseUrl=metaData.Box_Base_URL__c;
-        organizationWideEmailAdress=metaData.Organization_Wide_Email_Addresse__c;
-        List<string> recipientEmails=new List<string>{email};
-        string sfFolderId=getSFBoxFolderIdByEmail(email);
-        
+        // emailBody=metaData.Email_Body__c;
+        // boxBaseUrl=metaData.Box_Base_URL__c;
+        // organizationWideEmailAdress=metaData.Organization_Wide_Email_Addresse__c;
+        // List<string> recipientEmails=new List<string>{email};
+        onlineLeadFromController.reponseForLWC sfRes=getSFBoxFolderIdByEmail(email);
+        string sfFolderId=sfRes!=null?sfRes.folderId:null;
         FolderDetails folderDetail=sfFolderId!=null?getFolderInfo(sfFolderId):null;
         if(folderDetail!=null){
             //FolderDetails folderDetail=getFolderInfo(sfFolderId);
@@ -85,10 +90,12 @@ public with sharing class boxFormHelperMethods {
             System.debug('folder exist!');
             string stagingFolderId=getFolderIfExist(folderDetail);
             System.debug('staging folder id :'+stagingFolderId);
-            uploadFiles(files, stagingFolderId);
-            uploadFilesToBackupFolder(name,email,files);    
-            sendEmail(recipientEmails, 'box folder get created successfully!', boxBaseUrl+'/folder/'+stagingFolderId, organizationWideEmailAdress);
-            return stagingFolderId;
+            return new onlineLeadFromController.reponseForLWC(stagingFolderId, sfRes.loanId);
+            //return stagingFolderId;
+            // uploadFiles(files, stagingFolderId);
+            // uploadFilesToBackupFolder(name,email,files);    
+            // sendEmail(recipientEmails, 'box folder get created successfully!', boxBaseUrl+'/folder/'+stagingFolderId, organizationWideEmailAdress);
+            // return stagingFolderId;
         }
         else{
 
@@ -110,33 +117,46 @@ public with sharing class boxFormHelperMethods {
                 customerFolderId=customerFolderDetail.id;
             }
             System.debug('customer folder id :'+customerFolderId);
-            uploadFiles(files, customerFolderId);
-            uploadFilesToBackupFolder(name,email,files);
-            sendEmail(recipientEmails, 'box folder get created successfully!', boxBaseUrl+'/folder/'+customerFolderId, organizationWideEmailAdress);
-            return customerFolderId;
+            //return customerFolderId;
+            return new onlineLeadFromController.reponseForLWC(customerFolderId, null);
+            // uploadFiles(files, customerFolderId);
+            // uploadFilesToBackupFolder(name,email,files);
+            // sendEmail(recipientEmails, 'box folder get created successfully!', boxBaseUrl+'/folder/'+customerFolderId, organizationWideEmailAdress);
+            // return customerFolderId;
         }
         }
         catch(Exception e){
             throw new CalloutException('Exception : '+e.getMessage());
         }
     }
-    private static void uploadFilesToBackupFolder(string name,string email,List<onlineLeadFromController.FileWrapper> files){
-
-        System.debug('backup folder id :'+backuFolderId);
-        FolderDetails folderDetail=getFolderInfo(backuFolderId);
-        string customerFolderId=null;
-        for(Entry entry:folderDetail.item_collection.entries){
-            if(getEmail(entry.name)==email){
-                customerFolderId=entry.id;
-                break;
+    @AuraEnabled
+    public static string getBackupFolder(string name,string email){
+        try{
+            Experience_cloud_solution__mdt metaData=[SELECT BackUp_Folder_Id__c FROM Experience_cloud_solution__mdt where DeveloperName ='admin' limit 1];
+            backuFolderId=metaData.BackUp_Folder_Id__c;
+            if(backuFolderId==null){
+                throw new CalloutException('Backup folder id is null');
             }
+            System.debug('backup folder id :'+backuFolderId);
+            FolderDetails folderDetail=getFolderInfo(backuFolderId);
+            string customerFolderId=null;
+            for(Entry entry:folderDetail.item_collection.entries){
+                if(getEmail(entry.name)==email){
+                    customerFolderId=entry.id;
+                    break;
+                }
+            }
+            if(customerFolderId==null){
+                FolderDetails customerFolderDetail=createFolder(getCustomFolderName(name,email), backuFolderId);
+                customerFolderId=customerFolderDetail.id;
+            }
+            System.debug('customer folder id :'+customerFolderId);
+            return customerFolderId;
         }
-        if(customerFolderId==null){
-            FolderDetails customerFolderDetail=createFolder(getCustomFolderName(name,email), backuFolderId);
-            customerFolderId=customerFolderDetail.id;
+        catch(Exception e){
+            throw new CalloutException('Exception : '+e.getMessage());
         }
-        System.debug('customer folder id :'+customerFolderId);
-        uploadFiles(files, customerFolderId);
+        //uploadFiles(files, customerFolderId);
 
     }
     private static string getCustomFolderName(string name,string email){
@@ -150,30 +170,30 @@ public with sharing class boxFormHelperMethods {
         }
         return null;
     }
-    private static void uploadFiles(List<onlineLeadFromController.FileWrapper> files, string folderId){
-        for(onlineLeadFromController.FileWrapper file:files){
-            // Append date-time to the file name
-            String newFileName = appendDateTimeToFileName(file.fileName);
-            System.debug('new file name :'+newFileName);
-            uploadFilesIntoFolder(newFileName, folderId, file.fileContent);
-        }
-    }
-    private static String appendDateTimeToFileName(String fileName) {
-        // Get the current date-time and format it
-        String dateTimeString = DateTime.now().format('yyyy-MM-dd-HH-mm-ss');
-        // Split the file name and extension
-        Integer lastDotIndex = fileName.lastIndexOf('.');
-        if (lastDotIndex == -1) {
-            // If there's no extension, just append the date-time
-            return fileName + '-' + dateTimeString;
-        } else {
-            // Extract the base name and extension
-            String baseName = fileName.substring(0, lastDotIndex);
-            String extension = fileName.substring(lastDotIndex);
-            // Combine base name, date-time, and extension
-            return baseName + '-' + dateTimeString + extension;
-        }
-    }
+    // private static void uploadFiles(List<onlineLeadFromController.FileWrapper> files, string folderId){
+    //     for(onlineLeadFromController.FileWrapper file:files){
+    //         // Append date-time to the file name
+    //         String newFileName = appendDateTimeToFileName(file.fileName);
+    //         System.debug('new file name :'+newFileName);
+    //         uploadFilesIntoFolder(newFileName, folderId, file.fileContent);
+    //     }
+    // }
+    // private static String appendDateTimeToFileName(String fileName) {
+    //     // Get the current date-time and format it
+    //     String dateTimeString = DateTime.now().format('yyyy-MM-dd-HH-mm-ss');
+    //     // Split the file name and extension
+    //     Integer lastDotIndex = fileName.lastIndexOf('.');
+    //     if (lastDotIndex == -1) {
+    //         // If there's no extension, just append the date-time
+    //         return fileName + '-' + dateTimeString;
+    //     } else {
+    //         // Extract the base name and extension
+    //         String baseName = fileName.substring(0, lastDotIndex);
+    //         String extension = fileName.substring(lastDotIndex);
+    //         // Combine base name, date-time, and extension
+    //         return baseName + '-' + dateTimeString + extension;
+    //     }
+    // }
     private static string getFolderIfExist(FolderDetails folderDetail){
         try{
             string stagingFolderId=null;
@@ -240,40 +260,40 @@ public with sharing class boxFormHelperMethods {
         }
     }
 
-    private static void uploadFilesIntoFolder(string fileName,string folderId,string fileContent){
-        try{
-            //Blob fileBlob = Blob.valueOf(fileContent);
-            Blob fileBlob = EncodingUtil.base64Decode(fileContent);
-            String fullUrl = 'callout:Upload_Box_Api/api/2.0/files/content?parent_id='+folderId;
-            Http http = new Http();
-            HttpRequest request = new HttpRequest();
-            request.setMethod('POST');
-            request.setEndpoint(fullUrl);
-            Map<String, String> additionalHeaders = new Map<String, String>();
-            additionalHeaders.put('Content-Type', 'multipart/form-data; boundary=' + BOUNDARY);
-            additionalHeaders.put('Accept-Encoding', 'gzip');
-            additionalHeaders.put('Accept-Charset', 'utf-8');  
-            Blob bodyBlob = BoxBase64.buildMultipartFileBody(fileBlob,fileName,BOUNDARY);
-            request.setBodyAsBlob(bodyBlob);
-            additionalHeaders.put('Content-Length',String.valueof(request.getBodyAsBlob().size()));
-            for (String headerName : additionalHeaders.keySet()) {
-                request.setHeader(headerName, additionalHeaders.get(headerName));
-            }
-            HttpResponse res=http.send(request);
-            System.debug(res.getBody());
-            System.debug(res.getStatusCode()); 
-            if(res.getStatusCode()==201){
-                System.debug('file get successfully uploaded!');
-            }  
-            else{
+    // private static void uploadFilesIntoFolder(string fileName,string folderId,string fileContent){
+    //     try{
+    //         //Blob fileBlob = Blob.valueOf(fileContent);
+    //         Blob fileBlob = EncodingUtil.base64Decode(fileContent);
+    //         String fullUrl = 'callout:Upload_Box_Api/api/2.0/files/content?parent_id='+folderId;
+    //         Http http = new Http();
+    //         HttpRequest request = new HttpRequest();
+    //         request.setMethod('POST');
+    //         request.setEndpoint(fullUrl);
+    //         Map<String, String> additionalHeaders = new Map<String, String>();
+    //         additionalHeaders.put('Content-Type', 'multipart/form-data; boundary=' + BOUNDARY);
+    //         additionalHeaders.put('Accept-Encoding', 'gzip');
+    //         additionalHeaders.put('Accept-Charset', 'utf-8');  
+    //         Blob bodyBlob = BoxBase64.buildMultipartFileBody(fileBlob,fileName,BOUNDARY);
+    //         request.setBodyAsBlob(bodyBlob);
+    //         additionalHeaders.put('Content-Length',String.valueof(request.getBodyAsBlob().size()));
+    //         for (String headerName : additionalHeaders.keySet()) {
+    //             request.setHeader(headerName, additionalHeaders.get(headerName));
+    //         }
+    //         HttpResponse res=http.send(request);
+    //         System.debug(res.getBody());
+    //         System.debug(res.getStatusCode()); 
+    //         if(res.getStatusCode()==201){
+    //             System.debug('file get successfully uploaded!');
+    //         }  
+    //         else{
                 
-                throw new CalloutException('Exception :'+res.getBody());
-            }
-        }
-        catch(Exception e){
-            throw new CalloutException(e.getMessage());
-        }
-    }
+    //             throw new CalloutException('Exception :'+res.getBody());
+    //         }
+    //     }
+    //     catch(Exception e){
+    //         throw new CalloutException(e.getMessage());
+    //     }
+    // }
     private static HttpResponse makeHttpRequest( String endpointUrl, String httpMethod, String requestBody, Map<String, String> additionalHeaders) {
         try{
             Http http = new Http();
@@ -306,18 +326,28 @@ public with sharing class boxFormHelperMethods {
             throw new CalloutException(e.getMessage());
         }
     } 
+    @AuraEnabled
+    public static string getToken(){
+    
+        string boxAccessToken=null;
+        String credName = 'Equinox BoxApi Auth';
+        List<Box_Api_Cred__c> apiCred= [SELECT Id,Name,Client_Id__c,Client_Secret__c,Access_Token__c,Refresh_Token__c FROM Box_Api_Cred__c Where Name =: credName Limit 1];
+        if(apiCred.size()>0){
+            System.debug('apiCred-->'+apiCred);
+            
+            BoxApiConnection api = new BoxApiConnection(apiCred[0].Client_Id__c,apiCred[0].Client_Secret__c,apiCred[0].Access_Token__c,apiCred[0].Refresh_Token__c);
+            api.refresh();
+            System.debug(api.accessToken);
+            system.debug('BoxApiConnection VT-->'+api);
+            System.debug(BoxApiRequest.authJson);
+            if(api.accessToken!=apiCred[0].Access_Token__c){
+                System.debug('refresh token');
+                BoxTokenUpdate.tokenSettingUpdate(BoxApiRequest.authJson);
+                boxAccessToken=api.accessToken;
+            }
 
-    public static void getToken(){
-        String requestBody = 'grant_type=client_credentials'
-                         + '&client_id=' + EncodingUtil.urlEncode('cqw8jzbdi52cvj997c1gutsgltspf0zh', 'UTF-8')
-                         + '&client_secret=' + EncodingUtil.urlEncode('1H1gxqpgawdEBCyl667DJkbuiteydz6W', 'UTF-8');
-
-        // Call the makeHttpRequest method
-        Map<string,string> headers=new Map<string,string>{'Content-Type'=>'application/x-www-form-urlencoded'};
-        HttpResponse res = makeHttpRequest('/oauth2/token', 'POST', requestBody, headers);
-
-        // Print the response to debug
-        System.debug(res.getBody());
+        }
+        return boxAccessToken;
     }
     @Future(callout=true)
     public static void moveFilesToLoanFolder(List<string> frupIds){
@@ -376,28 +406,47 @@ public with sharing class boxFormHelperMethods {
             throw new CalloutException('file isn\'t getting moved.');
         }
     }
-    public static void sendEmail(List<string> recipientEmails,string subject,string boxLink, string defaultEmail) {
+    @AuraEnabled
+    public static void sendEmail(string customerFolderId,string loanId) {
         try {
             //string mergeEmailBody='<html><body><h1>Welcome,</h1><p>We are excited to have you on board. Please feel free to reach out if you have any questions.</p></body></html>';
-            string mergeEmailBody = emailBody.replace('{!boxLink}', boxLink);
-            //EmailTemplate template = [SELECT Id FROM EmailTemplate WHERE DeveloperName = :templateName LIMIT 1];
-            Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
-            //mail.setTargetObjectId(targetId);
-            //mail.setWhatId(whatId);
-            //mail.setTemplateId(template.Id);
-            List<OrgWideEmailAddress> adresses=[select Id from OrgWideEmailAddress where Address =: defaultEmail];
-            if(adresses.size()>0){
-                System.debug('org wide email address id :'+adresses[0].Id);
-                mail.setOrgWideEmailAddressId(adresses[0].Id);
+            Experience_cloud_solution__mdt metaData=[SELECT Temp_User_Id__c,Folder_Name__c, Success_Email_Template__c,Holding_Folder_Id__c,BackUp_Folder_Id__c,Email_Body__c,Box_Base_URL__c,Organization_Wide_Email_Addresse__c FROM Experience_cloud_solution__mdt where DeveloperName ='admin' limit 1];
+            System.debug('loadn id :'+loanId);
+            Opportunity opp=[select id,name,owner.Name, owner.FirstName, owner.LastName, Owner.Email from Opportunity where id=:loanId];
+            System.debug('owenr email :'+opp.Owner.Email);
+            System.debug('owenr email :'+opp.Owner.Name);
+            if(opp.Owner.Email!=null){
+                emailBody=metaData.Email_Body__c;
+                boxBaseUrl=metaData.Box_Base_URL__c;
+                string defaultEmail=metaData.Organization_Wide_Email_Addresse__c;
+                List<string> recipientEmails=new List<string>{opp.Owner.Email};
+                //List<string> recipientEmails=new List<string>{'parth9785@gmail.com'};
+                string subject='Files Uploaded for '+opp.Name;
+                string boxLink=boxBaseUrl+'/folder/'+customerFolderId;
+                string oppOwnerName= opp.owner.FirstName!=null && opp.owner.LastName!=''?opp.owner.FirstName+' '+opp.owner.LastName:opp.Owner.LastName;
+                System.debug('oppOwnerName : '+oppOwnerName);
+                string mergeEmailBody = emailBody.replace('{!InsertLink}', boxLink);
+                mergeEmailBody = mergeEmailBody.replace('{!LoanName}', opp.Name);
+                mergeEmailBody = mergeEmailBody.replace('{!OpportunityOwner}', oppOwnerName);
+                //EmailTemplate template = [SELECT Id FROM EmailTemplate WHERE DeveloperName = :templateName LIMIT 1];
+                Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
+                //mail.setTargetObjectId(targetId);
+                //mail.setWhatId(whatId);
+                //mail.setTemplateId(template.Id);
+                List<OrgWideEmailAddress> adresses=[select Id from OrgWideEmailAddress where Address =: defaultEmail];
+                if(adresses.size()>0){
+                    System.debug('org wide email address id :'+adresses[0].Id);
+                    mail.setOrgWideEmailAddressId(adresses[0].Id);
+                }
+                mail.setToAddresses(recipientEmails);
+                mail.setSaveAsActivity(false);
+                //mail.setTreatTargetObjectAsRecipient(false);
+                mail.setSubject(subject);
+                mail.setHtmlBody(mergeEmailBody);
+                
+                Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{mail});
+                System.debug('Email sent successfully to' + recipientEmails);
             }
-            mail.setToAddresses(recipientEmails);
-            mail.setSaveAsActivity(false);
-            //mail.setTreatTargetObjectAsRecipient(false);
-            mail.setSubject(subject);
-            mail.setHtmlBody(mergeEmailBody);
-            
-            Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{mail});
-            System.debug('Email sent successfully to' + recipientEmails);
         } catch (Exception e) {
             System.debug('Error sending email: ' + e.getMessage());
             throw new CalloutException('Error sending email: ' + e.getMessage());
@@ -405,11 +454,11 @@ public with sharing class boxFormHelperMethods {
     }
     public class CalloutException extends Exception {}
 
-    public class Authorization{
-        public string access_token;
-        public string token_type;
+    public class AccessTokenResponse{
+        public String access_token;
         public Integer expires_in;
-        public string refresh_token;
+        public List<String> restricted_to;
+        public String token_type;
     }
 
     public class FolderDetails{
@@ -425,4 +474,5 @@ public with sharing class boxFormHelperMethods {
         public String id;
         public String name;
     }
+    
 }

@@ -8,6 +8,15 @@ private with sharing class onlineLeadFromControllerTest {
         Test.setMock(HttpCalloutMock.class, mock); 
         createData();
         
+        /*Box_Api_Cred__c cred=new Box_Api_Cred__c();
+        cred.Name='Equinox BoxApi Auth';
+        cred.Client_Id__c='1234';
+        cred.Client_Secret__c='1234';
+        cred.Access_Token__c='8988943';
+        cred.Refresh_Token__c='riuifjf';
+        insert cred;*/
+        
+        
         
 
     }
@@ -42,6 +51,7 @@ private with sharing class onlineLeadFromControllerTest {
     @isTest
     static void testCase1(){
         Map<String, Object> formData = new Map<String, Object>();
+        Opportunity opp=[select id from Opportunity limit 1];
         formData.put('name', 'test1');
         formData.put('mobile', '1234567890');
         formData.put('email', 'test1@gmail.com');
@@ -53,7 +63,10 @@ private with sharing class onlineLeadFromControllerTest {
         formData.put('files', files);
         Test.setMock(HttpCalloutMock.class, new boxAPIMockout());
         Test.startTest();
-        onlineLeadFromController.submitFormWithFile(formData);
+        onlineLeadFromController.getFolderID(formData);
+        boxFormHelperMethods.getBackupFolder('test1','test1@gmail.com');
+        boxFormHelperMethods.sendEmail('1234',opp.Id);
+        boxFormHelperMethods.getToken();
         Test.stopTest();
     }
 
@@ -72,7 +85,7 @@ private with sharing class onlineLeadFromControllerTest {
         formData.put('files', files);
         Test.setMock(HttpCalloutMock.class, new boxAPIMockout());
         Test.startTest();
-        onlineLeadFromController.submitFormWithFile(formData);
+        onlineLeadFromController.getFolderID(formData);
         Test.stopTest();
     }
 
@@ -83,4 +96,5 @@ private with sharing class onlineLeadFromControllerTest {
         onlineLeadFromController.verifyCaptcha(null,'12345');
         Test.stopTest();
     }
+    
 }

@@ -9,18 +9,41 @@ public class onlineLeadFromController {
     //     }
     // }
 
+    // @AuraEnabled
+    // public static string submitFormWithFile(Map<String, Object> formData) {
+    //     try {
+    //         String name = (String) formData.get('name');
+    //         String phone = (String) formData.get('mobile');
+    //         String email = (String) formData.get('email');
+    //         List<FileWrapper> files = (List<FileWrapper>) JSON.deserialize(JSON.serialize(formData.get('files')), List<FileWrapper>.class);
+    //         System.debug('Files Data: ' + JSON.serialize(files));
+    //         if(String.isBlank(name) || String.isBlank(phone) || String.isBlank(email) || files==null || files.size()==0){
+    //             throw new AuraHandledException('some issue with form data');
+    //         }
+    //         string res=boxFormHelperMethods.uploadFileToBox(name,email,phone,files);
+    //         if(res!=null){
+    //             return res;
+    //         }
+    //         throw new AuraHandledException('something wrong with file upload');
+    //     }
+    //     catch(Exception e) {
+    //         throw new AuraHandledException('Error submitting form: ' + e.getMessage());
+    //     }
+    // }
+
     @AuraEnabled
-    public static string submitFormWithFile(Map<String, Object> formData) {
+    public static reponseForLWC getFolderID(Map<String, Object> formData) {
         try {
             String name = (String) formData.get('name');
             String phone = (String) formData.get('mobile');
             String email = (String) formData.get('email');
-            List<FileWrapper> files = (List<FileWrapper>) JSON.deserialize(JSON.serialize(formData.get('files')), List<FileWrapper>.class);
-            System.debug('Files Data: ' + JSON.serialize(files));
-            if(String.isBlank(name) || String.isBlank(phone) || String.isBlank(email) || files==null || files.size()==0){
+            //List<FileWrapper> files = (List<FileWrapper>) JSON.deserialize(JSON.serialize(formData.get('files')), List<FileWrapper>.class);
+            //System.debug('Files Data: ' + JSON.serialize(files));
+            if(String.isBlank(name) || String.isBlank(phone) || String.isBlank(email)){
                 throw new AuraHandledException('some issue with form data');
             }
-            string res=boxFormHelperMethods.uploadFileToBox(name,email,phone,files);
+            
+            reponseForLWC res=boxFormHelperMethods.uploadFileToBox(name,email,phone);
             if(res!=null){
                 return res;
             }
@@ -78,6 +101,19 @@ public class onlineLeadFromController {
     
         public String fileName;
         public String fileContent;
+    }
+    public class reponseForLWC{
+        @AuraEnabled
+        public string loanId{get;set;}
+        @AuraEnabled
+        public string folderId{get;set;}
+        
+
+        public reponseForLWC(string folderId,string loanId){
+            this.loanId=loanId;
+            this.folderId=folderId;
+            
+        }
     }
     // public class ResponseWrapper {
     //     @AuraEnabled public Integer statusCode { get; set; }
